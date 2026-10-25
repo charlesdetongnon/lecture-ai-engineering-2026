@@ -21,19 +21,26 @@ from app.config import MODEL, api_error_message, get_api_key
 DEFAULT_QUESTION = "AIE2026の講座の宿題にある「3レベル」とは何ですか？"
 
 
-def ask(question: str, temperature: float = 1.0) -> str:
+def ask(question: str, history: list, temperature: float = 1.0) -> str:
     client = genai.Client(api_key=get_api_key())
+
+    user_msg = types.Content(role="user", parts=[types.Part(text=question)])
     response = client.models.generate_content(
         model=MODEL,
-        contents=question,
+        contents=history + [user_msg],
         config=types.GenerateContentConfig(temperature=temperature),
     )
+    answer = response.text
+
+    # Only save the turn once the call has succeeded
+    history.append(user_msg)
+    history.append(types.Content(role="model", parts=[types.Part(text=answer)]))
 
     usage = response.usage_metadata
     print(f"[tokens] entrée : {usage.prompt_token_count}")
     print(f"[tokens] sortie : {usage.candidates_token_count}\n")
 
-    return response.text
+    return answer
 
 
 def main() -> None:
@@ -44,13 +51,16 @@ def main() -> None:
 
     print(f"[model] {MODEL}")
     print(f"[temperature] {args.temperature}")
-    print(f"[質問] {args.question}\n")
+
+    history: list = []
+    question = args.question
     try:
-        print(ask(args.question, args.temperature))
+        while question:
+            print(f"[質問] {question}\n")
+            print(ask(question, history, args.temperature))
+            question = input("\nQuestion suivante (vide pour quitter) : ").strip()
     except errors.APIError as e:
         print(api_error_message(e.code, e.message))
         raise SystemExit(1)
-
-
 if __name__ == "__main__":
     main()
