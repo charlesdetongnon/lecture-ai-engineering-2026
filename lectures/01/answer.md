@@ -8,19 +8,14 @@
 
 ## 宿題
 
-取り組んだレベル：基礎
+取り組んだレベル：実装
 
-やったこと： J'ai posé 3 fois la même question ( Qu'est-ce que LoRA ?) avec le même modèle (gemini-3.5-flash-lite) en changeant uniquement la température (0, 1, 2) grâce à une option --temperature ajoutée au script app/ask.py. J'ai aussi ajouté dans ask() l'affichage des tokens d'entrée et de sortie à partir de response.usage_metadata. Commande utilisée : uv run python -m app.ask "Qu'est-ce que LoRA ?" --temperature 0 (puis 1, puis 2).
+やったこと： J'ai modifié app/ask.py pour enchaîner les questions en conservant l'historique de la conversation. Le modèle n'a pas de mémoire entre deux appels : ask() reçoit donc une liste history et envoie à chaque appel tout l'historique plus la nouvelle question. La question et la réponse ne sont ajoutées à l'historique qu'après un appel réussi. main() boucle avec input() : le script pose la question donnée en argument, puis demande la suivante jusqu'à ce qu'on valide une ligne vide. J'ai conservé l'option --temperature et l'affichage des tokens  ajoutés pour l'exercice, ce qui permet de suivre les tokens à chaque tour. Commande de test : uv run python -m app.ask "Qu'est-ce que LoRA ?" --temperature 0, puis une question de suivi saisie au prompt.
 
 結果：
+Question 1 : " Qu'est-ce que LoRA ? " ;  tokens entrée / sortie : 10 / 670
+Question 2 (suivi) : " Et à quoi sert le rang r dont tu parles ? " ; tokens entrée / sortie : 694 / 655
+Le modèle a compris le contexte de la conversation : la question de suivi ne répète pas " LoRA ", et pourtant il a répondu sur le rang r de LoRA (" le paramètre le plus important de LoRA "). Il explique le rôle de r (petit r de 4 à 8 : fichier léger et entraînement rapide ; grand r de 64 à 256 : plus de capacité mais plus lourd) et le risque de surapprentissage si r est trop grand.
+Les 694 tokens d'entrée de la 2e question correspondent à l'historique renvoyé : 10 (question 1) + 670 (réponse 1) + environ 14 (question de suivi).
 
-Température 0 : 10 tokens en entrée, 807 en sortie. 4 sections + conclusion, analogie du dictionnaire et du carnet de notes. Imprécisions : « poids synaptiques », « groupes de neurones », « On ne entraîne ».
-Température 1 : 10 tokens en entrée, 584 en sortie. 4 sections, analogie du Post-it sur un livre. Aucune erreur évidente.
-Température 2 : 10 tokens en entrée, 536 en sortie. 3 sections + conclusion, analogie du Post-it. Erreurs : « fin gourmet » pour fine-tuning, « rang faible », chiffres vagues.
-Comparaison :
-La température 0 donne la réponse la plus longue et la plus complète.
-Les températures 1 et 2 sont plus courtes et se ressemblent (même analogie, même plan).
-La température 2 est la seule à contenir une erreur de vocabulaire flagrante.
-Les tokens d'entrée sont identiques (10) puisque la question est la même ; seule la sortie varie.
-
-気づき・疑問： Le glossaire définit la température comme le réglage du caractère aléatoire du choix du prochain token (bas = stable, haut = varié). Mes essais vont dans ce sens : le vocabulaire est plus fiable à température 0 et une erreur apparaît à température 2. Le fond technique (niveau de détail sur LoRA) est resté le même aux trois températures ; la température a surtout changé la longueur, le style et la qualité du vocabulaire. La longueur diminue quand la température augmente (807 ; 584 ; 536), mais je n'ai fait qu'un seul essai par température, donc je ne peux pas affirmer que c'est une règle générale. Questions : combien d'essais faut-il pour conclure de façon fiable ? Si je relance deux fois la température 0, obtiendrai-je des réponses presque identiques ? Et à température 2, les erreurs comme « fin gourmet » apparaissent-elles à chaque fois ?
+気づき・疑問： L'historique fonctionne : le modèle n'a pas de mémoire propre, c'est le script qui renvoie toute la conversation à chaque appel. Conséquence visible : les tokens d'entrée passent de 10 à 694 d'un tour à l'autre, et ils continueraient d'augmenter à chaque nouvelle question. Cela rejoint deux termes du glossaire : le contexte (la fenêtre de contexte limite le total de tokens par appel) et la limite de débit (le quota peut être atteint plus vite quand l'historique grossit). La réponse sur le rang r est cohérente avec le glossaire (r détermine la taille des matrices de faible rang ; plus r est grand, plus la capacité augmente, mais aussi les paramètres à entraîner et la mémoire). Elle mentionne en plus la décomposition en deux petits tableaux A et B, ce que les premières réponses de l'exercice ne disaient pas. Les affirmations sur le surapprentissage et sur un r « entre 8 et 32 » ne figurent pas dans le glossaire. Autre observation : à température 0, la même question avec le même modèle a donné 807 tokens de sortie (essai de l'exercice) et 670 tokens ici, avec une analogie différente (dictionnaire, puis lunettes correctrices). La température 0 ne rend donc pas la réponse strictement identique d'un lancement à l'autre. Questions : comment limiter la taille de l'historique (ne garder que les N derniers échanges, ou le résumer) ? Que se passe-t-il quand la limite de contexte est dépassée ?
